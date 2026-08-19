@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metro Parcel Network × AlphaEvolve — what a shift schedule really is</title>
+<style>
+  :root {
+    --bg: #F5F3F0; --panel: #FFFFFF; --ink: #1D1D1B; --muted: #6E6A64; --line: #E4E1DB;
+    --red: #DC1928; --hivis: #FFB81C;
+    /* segment palette — validated 4-way categorical (drive is one neutral ramp) */
+    --s-empty: #C4CACA; --s-loaded: #7C8688; --s-queue: #E8A020; --s-load: #0069C0; --s-unload: #DC1928;
+    --display: "Helvetica Neue", Arial, Helvetica, sans-serif;
+    --body: "Helvetica Neue", Arial, Helvetica, sans-serif;
+    --mono: ui-monospace, Consolas, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; }
+  button:focus-visible, summary:focus-visible, input:focus-visible { outline: 3px solid var(--s-load); outline-offset: 2px; }
+  a { color: var(--ink); }
+
+  header {
+    background: var(--panel); border-bottom: 1px solid var(--line); border-top: 5px solid var(--red);
+    padding: 20px 32px 18px; display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  }
+  .logo { background: var(--red); color: #fff; font-family: var(--display); font-weight: 700;
+          font-size: 20px; padding: 8px 16px 9px; border-radius: 4px; }
+  .masthead h1 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 30px;
+                 line-height: 1.05; letter-spacing: -.01em; }
+  .masthead .sub { color: var(--muted); font-size: 13px; margin-top: 5px; }
+  .backlink { margin-left: auto; font-size: 13px; font-family: var(--mono); color: var(--muted);
+              text-decoration: none; border: 1px solid var(--line); padding: 8px 14px; border-radius: 4px; }
+  .backlink:hover { border-color: var(--ink); color: var(--ink); }
+
+  #thesis { background: var(--ink); color: #F2F0EC; padding: 18px 32px; }
+  #thesis .in { max-width: 1520px; margin: 0 auto; display: grid; grid-template-columns: 1fr auto; gap: 28px; align-items: center; }
+  #thesis p { margin: 0; font-size: 16px; line-height: 1.55; max-width: 92ch; }
+  #thesis b { color: var(--hivis); font-weight: 600; }
+  #thesis .count { text-align: right; border-left: 3px solid var(--red); padding-left: 16px; }
+  #thesis .count .v { font-family: var(--mono); font-size: 30px; font-weight: 700; line-height: 1; }
+  #thesis .count .k { font-size: 11px; color: #A6A199; margin-top: 5px; font-family: var(--mono); letter-spacing: .06em; }
+
+  main { max-width: 1520px; margin: 0 auto; padding: 20px 32px 40px; display: flex; flex-direction: column; gap: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px 20px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+             color: var(--muted); display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .card h2 { margin: 0 0 6px; font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -.01em; }
+  .lede { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 0 0 14px; max-width: 96ch; }
+  .split { display: grid; grid-template-columns: minmax(0,7fr) minmax(0,5fr); gap: 24px; }
+  .split.even { grid-template-columns: 1fr 1fr; }
+
+  /* controls */
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .fieldlbl { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  button { font-family: var(--body); font-size: 13.5px; font-weight: 600; border: 1px solid var(--line);
+           padding: 8px 14px; cursor: pointer; background: var(--panel); color: var(--ink); border-radius: 4px; }
+  button:hover { border-color: var(--ink); }
+  button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .dcchip { font-family: var(--mono); font-weight: 600; padding: 7px 11px; }
+  .dcchip .r { display: block; font-size: 10px; font-weight: 400; opacity: .7; }
+  select { font-family: var(--mono); font-size: 13px; padding: 7px 9px; border: 1px solid var(--line);
+           border-radius: 4px; background: var(--panel); color: var(--ink); }
+  .slider { display: grid; grid-template-columns: 190px 1fr 64px; gap: 12px; align-items: center; margin-top: 9px; font-size: 13px; }
+  .slider input[type=range] { width: 100%; accent-color: var(--s-load); }
+  .slider .val { font-family: var(--mono); font-size: 13px; text-align: right; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 13.5px; margin-top: 12px; }
+  .check input { accent-color: var(--s-load); width: 16px; height: 16px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 14px; }
+  .tiles.four { grid-template-columns: repeat(4, 1fr); }
+  .tile { border: 1px solid var(--line); background: #F7F5F2; border-radius: 4px; padding: 10px 12px; }
+  .tile .v { font-family: var(--mono); font-weight: 600; font-size: 21px; line-height: 1.1; }
+  .tile .k { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+  .tile .d { font-family: var(--mono); font-size: 11px; margin-top: 3px; }
+  .up { color: #0A7A3D; } .down { color: var(--red); }
+
+  svg { display: block; width: 100%; height: auto; }
+  .wrap { position: relative; }
+  .tip { position: absolute; pointer-events: none; display: none; z-index: 9; background: var(--ink);
+         color: #F2F0EC; font-family: var(--mono); font-size: 12px; padding: 6px 9px; border-radius: 3px;
+         white-space: pre; line-height: 1.5; }
+  .legend { display: flex; gap: 16px; margin-top: 10px; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+  .legend .sw { display: inline-block; width: 16px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+  /* decision tape */
+  #tape { display: flex; flex-direction: column; gap: 3px; margin-bottom: 6px; overflow-x: auto; padding-bottom: 2px; }
+  .taperow { display: flex; gap: 3px; align-items: center; }
+  .taperow .tl { font-family: var(--mono); font-size: 11px; font-weight: 600; width: 34px; flex: none; }
+  .tapechip { width: 17px; height: 17px; border-radius: 2px; flex: none; font-family: var(--mono);
+              font-size: 9.5px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+              cursor: default; border: 1px solid rgba(0,0,0,.08); }
+  .tapechip.dim { opacity: .3; }
+  #gantt .cyc { transition: opacity .12s; }
+  #gantt.focus .cyc { opacity: .22; }
+  #gantt.focus .cyc.on { opacity: 1; }
+
+  .diag { margin: 0; padding: 0; list-style: none; font-size: 13.5px; line-height: 1.5; }
+  .diag li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); }
+  .diag li:first-child { border-top: 0; }
+  .diag .m { font-family: var(--mono); font-weight: 700; }
+  .diag .bad .m { color: var(--red); } .diag .good .m { color: #0A7A3D; }
+  .diag .warn .m { color: #9A6B00; } .diag .info .m { color: var(--muted); }
+
+  .callout { margin-top: 14px; border-left: 4px solid var(--hivis); background: #FFF8E6; padding: 12px 14px;
+             font-size: 13.5px; line-height: 1.55; border-radius: 0 4px 4px 0; }
+  .callout b { font-family: var(--display); }
+  .callout.hide { display: none; }
+
+  details { margin-top: 14px; font-size: 13px; }
+  summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+  pre { background: var(--ink); color: #F0EDE7; padding: 12px; overflow: auto; border-radius: 4px;
+        font-family: var(--mono); font-size: 11.5px; line-height: 1.5; max-height: 330px; margin: 10px 0 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; margin-top: 10px; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); font-family: var(--mono); }
+  th:first-child, td:first-child { text-align: left; font-family: var(--body); }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .step { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px;
+          font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+  .step b { display: block; color: var(--ink); font-family: var(--display); font-size: 16px; margin-bottom: 5px; }
+  footer { color: var(--muted); font-size: 12.5px; padding: 0 32px 40px; max-width: 1520px; margin: 0 auto; line-height: 1.6; }
+
+  @media (max-width: 1080px) {
+    main, header, #thesis, footer { padding-left: 16px; padding-right: 16px; }
+    .split, .split.even, .steps { grid-template-columns: 1fr; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    #thesis .in { grid-template-columns: 1fr; }
+    #thesis .count { text-align: left; border-left: 0; border-top: 3px solid var(--red); padding: 12px 0 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Metro Parcel Network</div>
+  <div class="masthead">
+    <h1>What a shift schedule really is</h1>
+    <div class="sub">the representation behind the linehaul demo · 7 delivery centres · 2 sorting hubs · 7 trucks · all data fictional</div>
+  </div>
+  <a class="backlink" href="../ui/">← evolution demo</a>
+</header>
+
+<div id="thesis"><div class="in">
+  <p>The schedule on the main demo looks like hundreds of hand-placed blocks. It isn't. Every block is
+  <b>forced</b>: the moment you say <b>which DC this truck loads at next</b>, the network's rules — drive,
+  queue for the dock, load, run to the sooner-free sorter, queue, unload — fix every timestamp that follows.
+  So a whole shift schedule is just <b>a list of DC choices</b>, and a dispatch policy is the short program
+  that generates them. That is the thing AlphaEvolve evolves.</p>
+  <div class="count">
+    <div class="v" id="thesisCount">—</div>
+    <div class="k" id="thesisCountK">possible schedules</div>
+  </div>
+</div></div>
+
+<main>
+
+  <!-- ============ 1. one decision ============ -->
+  <section class="card">
+    <div class="eyebrow"><span>Step 1 · the atom</span><span>drag the dock clocks — the block redraws</span></div>
+    <h2>One decision produces one block of the timetable</h2>
+    <p class="lede">A truck has just finished unloading and is standing at a sorting hub. Pick the DC it goes to
+    next. Nothing else is chosen by anyone: the drive is distance ÷ speed, the queue is however long the dock is
+    already booked for, the load is capacity ÷ belt rate, and the truck tips at whichever sorter can take it
+    soonest. This is the entire vocabulary a schedule is written in.</p>
+    <div class="split">
+      <div>
+        <div class="row" style="margin-bottom:12px">
+          <span class="fieldlbl">Truck</span>
+          <select id="cTruck"></select>
+          <span class="fieldlbl">standing at</span>
+          <select id="cFrom"></select>
+        </div>
+        <div class="fieldlbl" style="margin-bottom:6px">Loads next at</div>
+        <div class="row" id="cChips" style="margin-bottom:16px"></div>
+        <div class="wrap">
+          <svg id="cycle" viewBox="0 0 620 128" role="img" aria-label="Timeline of one truck cycle"></svg>
+          <div class="tip" id="cycleTip"></div>
+        </div>
+        <div class="slider">
+          <label for="sDock">That DC's dock booked until</label>
+          <input type="range" id="sDock" min="0" max="180" step="5" value="0">
+          <span class="val" id="vDock">0 min</span>
+        </div>
+        <div class="slider">
+          <label for="sH1">Kurrajong sorter booked until</label>
+          <input type="range" id="sH1" min="0" max="180" step="5" value="0">
+          <span class="val" id="vH1">0 min</span>
+        </div>
+        <div class="slider">
+          <label for="sH2">Telopea sorter booked until</label>
+          <input type="range" id="sH2" min="0" max="180" step="5" value="0">
+          <span class="val" id="vH2">0 min</span>
+        </div>
+      </div>
+      <div>
+        <div class="fieldlbl" style="margin-bottom:8px">Every option, ranked by parcels per minute of cycle</div>
+        <div class="wrap">
+          <svg id="cRank" viewBox="0 0 420 250" role="img" aria-label="Delivery centres ranked by throughput"></svg>
+          <div class="tip" id="rankTip"></div>
+        </div>
+        <div class="callout" id="cInsight"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. the dispatcher ============ -->
+  <section class="card">
+    <div class="eyebrow"><span>Step 2 · the generator</span><span id="polScoreMeta"></span></div>
+    <h2>A dispatcher is a rule that answers that question every time</h2>
+    <p class="lede">Seven trucks, twelve hours, hundreds of dispatches — but only one rule, re-run at each of them.
+    Swap the rule and the entire schedule below is rebuilt from scratch. These are all real policies, scored right
+    here in your browser by a port of the same simulator AlphaEvolve was given.</p>
+    <div class="row" id="polButtons" style="margin-bottom:12px"></div>
+    <div class="split">
+      <div>
+        <p class="lede" id="polBlurb" style="margin:0 0 4px"></p>
+        <div id="polCustom" style="display:none">
+          <div class="check">
+            <input type="checkbox" id="cbMyopic">
+            <label for="cbMyopic">Ignore queues — cost each cycle as if every dock were free</label>
+          </div>
+          <div class="slider">
+            <label for="sWq">Price on the DC dock queue</label>
+            <input type="range" id="sWq" min="0" max="8" step="0.1" value="3">
+            <span class="val" id="vWq">3.0×</span>
+          </div>
+          <div class="slider">
+            <label for="sWh">Price on the sorter queue</label>
+            <input type="range" id="sWh" min="0" max="8" step="0.1" value="1.2">
+            <span class="val" id="vWh">1.2×</span>
+          </div>
+          <div class="callout hide" id="beatCallout"></div>
+        </div>
+        <div class="tiles">
+          <div class="tile"><div class="v" id="tScore">—</div><div class="k">parcels per shift (mean of 3 networks — the AlphaEvolve score)</div><div class="d" id="tScoreD"></div></div>
+          <div class="tile"><div class="v" id="tRuns">—</div><div class="k">truck runs completed, primary network</div><div class="d" id="tRunsD"></div></div>
+          <div class="tile"><div class="v" id="tQueue">—</div><div class="k">of fleet time spent queueing at a dock</div><div class="d" id="tQueueD"></div></div>
+          <div class="tile"><div class="v" id="tHubs">—</div><div class="k">sorters busy — Kurrajong / Telopea</div><div class="d" id="tHubsD"></div></div>
+          <div class="tile"><div class="v" id="tDcs">—</div><div class="k">of 7 delivery centres ever loaded at</div><div class="d" id="tDcsD"></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="fieldlbl" style="margin-bottom:6px">The rule, as the evaluator runs it</div>
+        <pre id="polCode"></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3. the schedule ============ -->
+  <section class="card">
+    <div class="eyebrow"><span>Step 3 · the schedule</span><span id="schedMeta"></span></div>
+    <h2>The schedule is what falls out</h2>
+    <p class="lede">Top strip: every decision the rule made, in order, one square per dispatch — that list
+    <em>is</em> the schedule in its compressed form. Below it, the same thing expanded into time. Hover any square
+    to see the cycle it produced.</p>
+    <div id="tape" role="img" aria-label="Decision tape: the DC each truck was sent to, in order"></div>
+    <div class="wrap">
+      <svg id="gantt" viewBox="0 0 1000 300" role="img" aria-label="Gantt chart of every truck's shift"></svg>
+      <div class="tip" id="gTip"></div>
+    </div>
+    <div class="legend" id="gLegend"></div>
+    <details>
+      <summary>Table view — where each delivery centre's day went</summary>
+      <table id="dcTable"></table>
+    </details>
+  </section>
+
+  <!-- ============ 4. good vs bad ============ -->
+  <section class="card">
+    <div class="eyebrow"><span>Step 4 · the spread</span><span>same trucks · same roads · same 12 hours</span></div>
+    <h2>What separates a good schedule from a bad one</h2>
+    <p class="lede">Every rule below moves the same fleet around the same network. The gap between the worst and the
+    best is a factor of two, and it is almost entirely one thing: whether trucks are working or standing in a queue.
+    Click any bar to load that dispatcher above.</p>
+    <div class="split even">
+      <div>
+        <div class="fieldlbl" style="margin-bottom:8px">Parcels per shift, by dispatcher</div>
+        <div class="wrap">
+          <svg id="ladder" viewBox="0 0 480 300" role="img" aria-label="Policies ranked by parcels per shift"></svg>
+          <div class="tip" id="lTip"></div>
+        </div>
+        <p class="lede" style="margin-top:10px">The bottom three score the same because they fail the same way:
+        not one of them looks at a queue, so all seven trucks reason identically and pile onto one dock. The jump
+        to the top of the board is not cleverness about distance — it is noticing that other trucks exist.</p>
+      </div>
+      <div>
+        <div class="fieldlbl" style="margin-bottom:8px">Where the fleet's 84 truck-hours go</div>
+        <div class="wrap">
+          <svg id="splitbars" viewBox="0 0 480 190" role="img" aria-label="Fleet time composition by activity"></svg>
+          <div class="tip" id="sTip"></div>
+        </div>
+        <div class="legend" id="sLegend"></div>
+        <ul class="diag" id="diag" style="margin-top:14px"></ul>
+      </div>
+    </div>
+    <details>
+      <summary>Table view — all dispatchers</summary>
+      <table id="polTable"></table>
+    </details>
+  </section>
+
+  <!-- ============ 5. why a policy ============ -->
+  <section class="card">
+    <div class="eyebrow"><span>Step 5 · why this representation</span><span>a timetable answers one day; a policy answers any day</span></div>
+    <h2>Why evolve the rule and not the timetable</h2>
+    <p class="lede">A schedule is only valid for the network it was drawn on. Move a depot, slow a belt, swap a
+    trailer, and every timestamp after the change is wrong. So the evaluator never scores a timetable — it scores a
+    rule, by re-running it on three different networks and averaging. The rule has to <em>re-derive</em> the
+    schedule each time, which is exactly what a dispatcher does at 6am on a real Tuesday.</p>
+    <div class="split">
+      <div class="wrap">
+        <svg id="variants" viewBox="0 0 640 200" role="img" aria-label="The current policy scored on three networks"></svg>
+        <div class="tip" id="vTip"></div>
+      </div>
+      <div>
+        <ul class="diag" id="whyList">
+          <li><span class="m">1</span><span><b>A timetable can't be scored fairly.</b> It would ace the network it was drawn for and fall apart on the other two. Averaging over three perturbed networks makes overfitting cost points.</span></li>
+          <li><span class="m">2</span><span><b>The search space is the right size.</b> A shift has hundreds of decisions; a policy has a few dozen lines. Gemini can rewrite lines. Nobody can search 10<sup>168</sup> timetables.</span></li>
+          <li><span class="m">3</span><span><b>The output is deployable.</b> What comes out is a dispatch rule an operations team can run tomorrow morning, not a plan that expires when a truck is late.</span></li>
+        </ul>
+        <div class="callout"><b>The arithmetic on the main demo:</b> <span id="whyArith"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 6. a genetic algorithm ============ -->
+  <section class="card">
+    <div class="eyebrow"><span>Step 6 · the search</span><span id="gaMeta">a population of rules, bred against the same simulator</span></div>
+    <h2>What a genetic algorithm does with this — and where it stops</h2>
+    <p class="lede">Take the dispatcher you tuned by hand and expose every term of its cost as a number. Now a rule is
+    five numbers — a <em>genome</em> — and you can breed them. Score a population, keep the best, cross the winners,
+    jitter a few genes, repeat. This is the whole algorithm, running live below against the same three networks. Watch
+    what it finds, and watch <em>where it starts</em>.</p>
+
+    <div class="row" style="margin-bottom:8px">
+      <button id="gaRun">▶ Run</button>
+      <button id="gaStep">Step one generation</button>
+      <button id="gaReset">Reset</button>
+      <span class="fieldlbl" style="margin-left:6px">Population</span>
+      <input type="range" id="sPop" min="8" max="28" step="4" value="20" style="width:120px;accent-color:#0069C0">
+      <span class="val" id="vPop" style="font-family:var(--mono);font-size:13px">20</span>
+      <span class="fieldlbl" style="margin-left:6px">Mutation rate</span>
+      <input type="range" id="sMut" min="0" max="60" step="5" value="25" style="width:120px;accent-color:#0069C0">
+      <span class="val" id="vMut" style="font-family:var(--mono);font-size:13px">25%</span>
+    </div>
+
+    <div class="tiles four">
+      <div class="tile"><div class="v" id="gGen">—</div><div class="k">generations bred</div><div class="d" id="gGenD"></div></div>
+      <div class="tile"><div class="v" id="gBest">—</div><div class="k">best genome in the population</div><div class="d" id="gBestD"></div></div>
+      <div class="tile"><div class="v" id="gSpread">—</div><div class="k">gene diversity left in the population</div><div class="d" id="gSpreadD"></div></div>
+      <div class="tile"><div class="v" id="gEvals">—</div><div class="k">full 12-hour shifts simulated to get here</div><div class="d" id="gEvalsD"></div></div>
+    </div>
+
+    <div class="split" style="margin-top:16px">
+      <div>
+        <div class="fieldlbl" style="margin-bottom:6px">Fitness by generation — every individual, not just the winner</div>
+        <div class="wrap">
+          <svg id="gaChart" viewBox="0 0 660 320" role="img" aria-label="Fitness of every individual over generations"></svg>
+          <div class="tip" id="gaChartTip"></div>
+        </div>
+        <div class="legend" id="gaLegend"></div>
+        <div class="callout" id="gaNote"></div>
+        <div class="fieldlbl" style="margin:16px 0 6px">The best program in the population right now</div>
+        <pre id="gaCode"></pre>
+      </div>
+      <div>
+        <div class="fieldlbl" style="margin-bottom:6px">The population, ranked — five genes and a score</div>
+        <div class="wrap">
+          <svg id="gaPop" viewBox="0 0 430 320" role="img" aria-label="Every genome in the population with its fitness"></svg>
+          <div class="tip" id="gaPopTip"></div>
+        </div>
+        <div class="fieldlbl" style="margin:14px 0 6px">How the last child was made</div>
+        <svg id="gaBreed" viewBox="0 0 430 160" role="img" aria-label="Two parents crossed and mutated into a child"></svg>
+      </div>
+    </div>
+
+    <div class="fieldlbl" style="margin:18px 0 8px">Why this is not what AlphaEvolve did</div>
+    <div class="steps">
+      <div class="step"><b>Look where generation 0 starts</b>A population of <em>random</em> genomes, no search at all,
+      and the best of them is usually already past candidate #26. That is not the algorithm being clever. Every genome
+      in this space is a full-cycle forecasting dispatcher that prices dock queues and chooses between two sorters —
+      because a person wrote that structure and left five blanks.</div>
+      <div class="step"><b>A GA can only fill blanks</b>It cannot add a term. If
+      <span style="font-family:var(--mono)">hub_queue</span> were missing from the template, no amount of breeding would
+      invent it. The ceiling would simply be lower, and nothing on the chart would tell you why — the population would
+      converge just as confidently on a worse answer.</div>
+      <div class="step"><b>AlphaEvolve starts one rung down</b>Its seed is the fixed roster at the top of this page: no
+      forecast, no queues, no blanks, 337,402 parcels. It had to write the terms and then price them, in Python, with the
+      evaluator as its only feedback. Finding the shape is the hard part; this section is what the easy part looks like
+      once you already have it.</div>
+    </div>
+
+    <details>
+      <summary>Table view — the current population, gene by gene</summary>
+      <table id="gaTable"></table>
+    </details>
+  </section>
+
+  <section class="steps">
+    <div class="step"><b>Same simulator</b>This page runs a JavaScript port of <span style="font-family:var(--mono)">experiment/evaluate.py</span>. <span style="font-family:var(--mono)">scripts/check_scheduling_sim.mjs</span> asserts it reproduces the recorded run's baseline and best scores to the decimal.</div>
+    <div class="step"><b>Same networks</b>The three instances come from <span style="font-family:var(--mono)">data/variants.json</span>, exported from the evaluator itself, so the score you see is the score AlphaEvolve saw.</div>
+    <div class="step"><b>Same question</b>Every dispatcher here — including the one you tune — returns <span style="font-family:var(--mono)">{"depot": id}</span> from the same function signature the evolved program uses.</div>
+  </section>
+</main>
+
+<footer>
+  All facilities, fleet figures and volumes are fictional. "Metro Parcel Network" is an invented operator, not a real carrier.
+  Road geometry on the main demo is illustrative; the travel model here and there is straight-line distance ÷ speed.
+</footer>
+
+<script type="module">
+import {simulate, scoreAll, forecast, dist, travelMin, POLICIES, CUSTOM, customCode, weighted,
+        GENES, GENE_MAX, EVOLVED_GENOME, genomePolicy, genomeCode} from "./sim.js";
+
+const $ = id => document.getElementById(id);
+const MONO = "ui-monospace, Consolas, Menlo, monospace";
+const fmt = v => Math.round(v).toLocaleString();
+const fmtk = v => v >= 10000 ? Math.round(v / 1000).toLocaleString() + "k" : fmt(v);
+const pct = v => (100 * v).toFixed(0) + "%";
+const SEG = {
+  travel_empty: {c: "#C4CACA", n: "drive empty"},
+  wait:         {c: "#E8A020", n: "queue"},
+  load:         {c: "#0069C0", n: "load at a DC"},
+  travel_loaded:{c: "#7C8688", n: "drive loaded"},
+  unload:       {c: "#DC1928", n: "unload at a sorter"},
+};
+const SPLIT_ORDER = ["travel_empty", "wait", "load", "travel_loaded", "unload"];
+
+function svgEl(tag, attrs = {}, text) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text != null) e.textContent = text;
+  return e;
+}
+/* attach a tooltip to a mark; hit areas are the marks themselves (≥8px) */
+function tipify(node, tipEl, text) {
+  node.addEventListener("mouseenter", () => { tipEl.textContent = text; tipEl.style.display = "block"; });
+  node.addEventListener("mousemove", e => {
+    const r = tipEl.parentElement.getBoundingClientRect();
+    tipEl.style.left = Math.min(e.clientX - r.left + 14, r.width - tipEl.offsetWidth - 4) + "px";
+    tipEl.style.top = (e.clientY - r.top - tipEl.offsetHeight - 10) + "px";
+  });
+  node.addEventListener("mouseleave", () => { tipEl.style.display = "none"; });
+  return node;
+}
+/* the Gantt draws ~2,000 marks and redraws on every slider tick — one set of
+   delegated listeners instead of three per rect */
+function tipifyDelegated(root, tipEl) {
+  const move = e => {
+    const r = tipEl.parentElement.getBoundingClientRect();
+    tipEl.style.left = Math.min(e.clientX - r.left + 14, r.width - tipEl.offsetWidth - 4) + "px";
+    tipEl.style.top = (e.clientY - r.top - tipEl.offsetHeight - 10) + "px";
+  };
+  root.addEventListener("mouseover", e => {
+    const t = e.target.dataset && e.target.dataset.tip;
+    if (!t) return;
+    tipEl.textContent = t; tipEl.style.display = "block"; move(e);
+  });
+  root.addEventListener("mousemove", e => { if (tipEl.style.display === "block") move(e); });
+  root.addEventListener("mouseout", e => {
+    if (e.target.dataset && e.target.dataset.tip) tipEl.style.display = "none";
+  });
+}
+/* one-hue sequential ramp for belt speed: light = slow manual, dark = automated */
+const rateRamp = ["#DCE8F3", "#B5D0E8", "#7FAED6", "#3F86BF", "#0069C0", "#00507E"];
+let rateScale = () => rateRamp[0];
+
+let VAR, NET, HUBS, state = {policy: "baseline", wq: 3, wh: 1.2, myopic: true};
+let ALL = [], baseRef = null, evoRef = null, bestSeen = 0;
+
+boot();
+
+async function boot() {
+  VAR = await fetch("../data/variants.json").then(r => r.json());
+  NET = VAR.instances[0];
+  HUBS = NET.hubs || [NET.hub];
+  const rates = NET.depots.map(d => d.dispatch_rate);
+  const lo = Math.min(...rates), hi = Math.max(...rates);
+  rateScale = r => rateRamp[Math.min(rateRamp.length - 1,
+    Math.floor((r - lo) / (hi - lo + 1e-9) * rateRamp.length))];
+
+  ALL = POLICIES.map(p => ({...p, ...scoreAll(VAR.instances, p.make)}));
+  baseRef = ALL.find(p => p.id === "baseline");
+  evoRef = ALL.find(p => p.id === "evolved");
+
+  buildCycleControls();
+  buildPolicyButtons();
+  tipifyDelegated($("gantt"), $("gTip"));
+  tipifyDelegated($("gaPop"), $("gaPopTip"));
+  tipifyDelegated($("gaChart"), $("gaChartTip"));
+  drawLegends();
+  renderPolicyTable();
+  render();
+  buildGA();
+}
+
+/* =================== step 1: one decision =================== */
+let cyc = {truck: null, from: "HUB", depot: "DC-4", dock: 0, h1: 0, h2: 0};
+
+function buildCycleControls() {
+  cyc.truck = NET.trucks[0].id;
+  $("cTruck").innerHTML = NET.trucks
+    .map(t => `<option value="${t.id}">${t.id} · ${t.capacity} parcels</option>`).join("");
+  $("cFrom").innerHTML = HUBS
+    .map(h => `<option value="${h.id}">${h.name.split(" ")[0]} sorter</option>`).join("");
+  $("cChips").innerHTML = NET.depots.map(d =>
+    `<button class="dcchip" data-dc="${d.id}">${d.id}<span class="r">${d.dispatch_rate}/min</span></button>`).join("");
+  $("cChips").querySelectorAll("button").forEach(b =>
+    b.onclick = () => { cyc.depot = b.dataset.dc; renderCycle(); });
+  $("cTruck").onchange = e => { cyc.truck = e.target.value; renderCycle(); };
+  $("cFrom").onchange = e => { cyc.from = e.target.value; renderCycle(); };
+  for (const [id, key, lbl] of [["sDock", "dock", "vDock"], ["sH1", "h1", "vH1"], ["sH2", "h2", "vH2"]]) {
+    $(id).oninput = e => {
+      cyc[key] = +e.target.value;
+      $(lbl).textContent = e.target.value + " min";
+      renderCycle();
+    };
+  }
+  renderCycle();
+}
+
+function cycleState() {
+  const depot_free = Object.fromEntries(NET.depots.map(d => [d.id, 0]));
+  depot_free[cyc.depot] = cyc.dock;
+  return {now: 0, depot_free,
+          hub_free_by_id: {HUB: cyc.h1, HUB2: cyc.h2},
+          hub_free: Math.min(cyc.h1, cyc.h2), parcels_sorted: 0};
+}
+
+function renderCycle() {
+  const hub = HUBS.find(h => h.id === cyc.from);
+  const t = NET.trucks.find(t => t.id === cyc.truck);
+  const truck = {id: t.id, capacity: t.capacity, x: hub.x, y: hub.y};
+  const st = cycleState();
+  const opts = NET.depots.map(d => ({d, f: forecast(truck, d, NET, st)}))
+                         .sort((a, b) => b.f.rate - a.f.rate);
+  const chosen = opts.find(o => o.d.id === cyc.depot);
+  $("cChips").querySelectorAll("button").forEach(b =>
+    b.classList.toggle("on", b.dataset.dc === cyc.depot));
+
+  /* --- the block itself --- */
+  const svg = $("cycle"); svg.innerHTML = "";
+  const f = chosen.f;
+  const parts = [
+    ["travel_empty", f.drive, `drive empty to ${cyc.depot}`],
+    ["wait", f.wait, `queue for ${cyc.depot}'s dock`],
+    ["load", f.load, `load ${fmt(truck.capacity)} parcels`],
+    ["travel_loaded", f.driveLoaded, `drive loaded to ${f.hub.name.split(" ")[0]}`],
+    ["wait", f.hubQueue, `queue at ${f.hub.name.split(" ")[0]}`],
+    ["unload", f.unload, `unload into the sorter`],
+  ].filter(p => p[1] > 0.01);
+  const W = 620, L = 8, R = 8, y = 34, h = 34;
+  const scale = (W - L - R) / Math.max(f.cycle, 1);
+  let x = L;
+  for (const [type, mins, label] of parts) {
+    const w = mins * scale;
+    const rect = svgEl("rect", {x, y, width: Math.max(w - 2, 1), height: h, rx: 2, fill: SEG[type].c});
+    tipify(rect, $("cycleTip"), `${label}\n${mins.toFixed(1)} min`);
+    svg.appendChild(rect);
+    if (w > 34)
+      svg.appendChild(svgEl("text", {x: x + w / 2 - 1, y: y + h / 2 + 4, "text-anchor": "middle",
+        "font-size": 11, "font-family": MONO, "font-weight": 600,
+        fill: type === "load" || type === "unload" ? "#fff" : "#1D1D1B"}, mins.toFixed(0)));
+    x += w;
+  }
+  svg.appendChild(svgEl("text", {x: L, y: 22, "font-size": 11.5, "font-family": MONO,
+    fill: "#6E6A64"}, "truck free at 0 min"));
+  svg.appendChild(svgEl("text", {x: W - R, y: 22, "text-anchor": "end", "font-size": 11.5,
+    "font-family": MONO, fill: "#6E6A64"},
+    `back at a sorter, empty again, at ${f.cycle.toFixed(1)} min`));
+  const wasted = f.wait + f.hubQueue;
+  svg.appendChild(svgEl("text", {x: L, y: y + h + 22, "font-size": 13, "font-family": MONO,
+    "font-weight": 600, fill: "#1D1D1B"},
+    `${fmt(truck.capacity)} parcels ÷ ${f.cycle.toFixed(1)} min = ${f.rate.toFixed(1)} parcels/min`));
+  svg.appendChild(svgEl("text", {x: L, y: y + h + 40, "font-size": 12, "font-family": MONO,
+    fill: wasted > 1 ? "#DC1928" : "#6E6A64"},
+    wasted > 1 ? `${wasted.toFixed(1)} min of it standing in a queue` : "no queueing on this cycle"));
+
+  /* --- ranked options --- */
+  const rs = $("cRank"); rs.innerHTML = "";
+  const RW = 420, rowH = 32, labelW = 62, barX = labelW + 6, barMax = RW - barX - 62;
+  const top = Math.max(...opts.map(o => o.f.rate));
+  opts.forEach((o, i) => {
+    const yy = 10 + i * rowH;
+    const sel = o.d.id === cyc.depot;
+    rs.appendChild(svgEl("text", {x: 0, y: yy + 15, "font-size": 12, "font-family": MONO,
+      "font-weight": sel ? 700 : 400, fill: "#1D1D1B"}, o.d.id));
+    rs.appendChild(svgEl("text", {x: 0, y: yy + 26, "font-size": 9.5, "font-family": MONO,
+      fill: "#6E6A64"}, `${o.d.dispatch_rate}/min belt`));
+    const w = Math.max(2, barMax * o.f.rate / top);
+    const bar = svgEl("rect", {x: barX, y: yy + 3, width: w, height: 20, rx: 3,
+      fill: rateScale(o.d.dispatch_rate), stroke: sel ? "#1D1D1B" : "none", "stroke-width": 2});
+    tipify(bar, $("rankTip"),
+      `${o.d.name}\ncycle ${o.f.cycle.toFixed(1)} min · queue ${(o.f.wait + o.f.hubQueue).toFixed(1)} min\n` +
+      `tips at ${o.f.hub.name.split(" ")[0]}\n${o.f.rate.toFixed(1)} parcels/min`);
+    bar.style.cursor = "pointer";
+    bar.onclick = () => { cyc.depot = o.d.id; renderCycle(); };
+    rs.appendChild(bar);
+    rs.appendChild(svgEl("text", {x: barX + w + 6, y: yy + 18, "font-size": 11.5,
+      "font-family": MONO, "font-weight": sel ? 700 : 400, fill: "#1D1D1B"},
+      o.f.rate.toFixed(1)));
+  });
+  rs.setAttribute("viewBox", `0 0 ${RW} ${10 + opts.length * rowH + 6}`);
+
+  /* --- the lesson --- */
+  const nearest = [...NET.depots].sort((a, b) => dist(truck, a) - dist(truck, b))[0];
+  const fastestBelt = [...NET.depots].sort((a, b) => b.dispatch_rate - a.dispatch_rate)[0];
+  const win = opts[0];
+  const bits = [];
+  if (win.d.id !== nearest.id)
+    bits.push(`the <b>nearest</b> DC (${nearest.id}) is not the best one`);
+  if (win.d.id !== fastestBelt.id)
+    bits.push(`neither is the <b>fastest belt</b> (${fastestBelt.id})`);
+  const spread = win.f.rate / opts[opts.length - 1].f.rate;
+  $("cInsight").innerHTML =
+    `<b>Best right now: ${win.d.id}</b> at ${win.f.rate.toFixed(1)} parcels/min — ` +
+    `${spread.toFixed(1)}× the worst option on the board. ` +
+    (bits.length ? bits.join(", ") + ". " : "") +
+    `Move a dock clock and the ranking reorders: the right answer depends on state, which is why a fixed roster ` +
+    `written at 6am is wrong by 9am.`;
+}
+
+/* =================== step 2–5: the workbench =================== */
+function buildPolicyButtons() {
+  const box = $("polButtons");
+  box.innerHTML = [...POLICIES, CUSTOM]
+    .map(p => `<button data-p="${p.id}">${p.label}</button>`).join("");
+  box.querySelectorAll("button").forEach(b =>
+    b.onclick = () => { state.policy = b.dataset.p; render(); });
+  $("cbMyopic").checked = state.myopic;
+  $("cbMyopic").onchange = e => { state.myopic = e.target.checked; render(); };
+  $("sWq").oninput = e => { state.wq = +e.target.value; render(); };
+  $("sWh").oninput = e => { state.wh = +e.target.value; render(); };
+}
+
+const currentDef = () => state.policy === "custom" ? CUSTOM : POLICIES.find(p => p.id === state.policy);
+const currentFactory = () => state.policy === "custom"
+  ? (net => CUSTOM.make(net, state)) : currentDef().make;
+
+function render() {
+  const def = currentDef();
+  const res = scoreAll(VAR.instances, currentFactory());
+  const primary = res.per[0];
+
+  $("polButtons").querySelectorAll("button").forEach(b =>
+    b.classList.toggle("on", b.dataset.p === state.policy));
+  $("polCustom").style.display = state.policy === "custom" ? "block" : "none";
+  $("polBlurb").textContent = def.blurb;
+  $("polCode").textContent = state.policy === "custom" ? customCode(state) : def.code;
+  $("vWq").textContent = state.wq.toFixed(1) + "×";
+  $("vWh").textContent = state.wh.toFixed(1) + "×";
+  $("sWq").disabled = $("sWh").disabled = state.myopic;
+
+  renderTiles(res, primary);
+  renderTape(primary);
+  renderGantt(primary);
+  renderDcTable(primary);
+  renderLadder(res.mean);
+  renderSplitBars(primary);
+  renderDiagnosis(res, primary);
+  renderVariants(res);
+
+  const D = primary.decisions;
+  $("thesisCount").innerHTML = `7<sup>${D}</sup> ≈ 10<sup>${Math.round(D * Math.log10(7))}</sup>`;
+  $("thesisCountK").textContent = `orderings of ${D} dispatches · ${state.policy === "custom" ? "your rule" : def.label.toLowerCase()} picked one`;
+  $("schedMeta").textContent = `${D} decisions · ${primary.runs} runs completed · primary network`;
+  $("polScoreMeta").textContent = `${fmt(res.mean)} parcels/shift · ${pctVs(res.mean, baseRef.mean)} vs the seed program`;
+
+  if (state.policy === "custom") {
+    bestSeen = Math.max(bestSeen, res.mean);
+    const beat = res.mean > evoRef.mean;
+    $("beatCallout").classList.toggle("hide", !beat);
+    if (beat) $("beatCallout").innerHTML =
+      `<b>You just beat candidate #26.</b> ${fmt(res.mean)} parcels/shift, ` +
+      `${pctVs(res.mean, evoRef.mean)} on AlphaEvolve's best. That is not a knock on the search — the run was ` +
+      `capped at 30 candidates, roughly ten minutes, and it was still climbing when it stopped. The point of the ` +
+      `slider is that this landscape is real and has structure; the point of AlphaEvolve is that it explores it ` +
+      `in the space of <em>programs</em>, not two numbers someone thought to expose.`;
+  }
+}
+
+const pctVs = (a, b) => (a >= b ? "+" : "−") + Math.abs((a - b) / b * 100).toFixed(1) + "%";
+
+function renderTiles(res, p) {
+  const b = baseRef.per[0];
+  $("tScore").textContent = fmt(res.mean);
+  $("tScoreD").innerHTML = span(res.mean - baseRef.mean, pctVs(res.mean, baseRef.mean) + " vs seed");
+  $("tRuns").textContent = p.runs;
+  $("tRunsD").innerHTML = span(p.runs - b.runs, `${p.runs - b.runs >= 0 ? "+" : ""}${p.runs - b.runs} vs seed`);
+  const q = p.split.wait / p.fleetMinutes;
+  $("tQueue").textContent = pct(q);
+  $("tQueueD").innerHTML = span(-(q - b.split.wait / b.fleetMinutes),
+    `seed ${pct(b.split.wait / b.fleetMinutes)}`);
+  const hu = p.hub_utilisation_by_id;
+  $("tHubs").textContent = `${pct(hu.HUB)} / ${pct(hu.HUB2)}`;
+  $("tHubsD").textContent = hu.HUB2 < 0.05 ? "west sorter idle all day"
+    : Math.abs(hu.HUB - hu.HUB2) < 0.12 ? "both sorters fed" : "lopsided";
+  const used = Object.values(p.dcStats).filter(s => s.runs > 0).length;
+  $("tDcs").textContent = `${used}/7`;
+  $("tDcsD").textContent = used === 7 ? "whole network in play" : `${7 - used} sitting idle`;
+}
+const span = (delta, txt) =>
+  `<span class="${delta > 0.0001 ? "up" : delta < -0.0001 ? "down" : ""}">${txt}</span>`;
+
+/* ---- decision tape ---- */
+function renderTape(p) {
+  const box = $("tape");
+  box.innerHTML = "";
+  for (const row of p.schedule) {
+    const r = document.createElement("div");
+    r.className = "taperow";
+    r.innerHTML = `<span class="tl">${row.truck}</span>`;
+    row.cycles.forEach((c, i) => {
+      const d = NET.depots.find(d => d.id === c.depot);
+      const chip = document.createElement("span");
+      chip.className = "tapechip";
+      chip.style.background = rateScale(d.dispatch_rate);
+      chip.style.color = d.dispatch_rate > (Math.min(...NET.depots.map(x => x.dispatch_rate)) +
+        Math.max(...NET.depots.map(x => x.dispatch_rate))) / 2 ? "#fff" : "#1D1D1B";
+      chip.textContent = c.depot.slice(-1);
+      const q = c.queueDC + c.queueHub;
+      chip.title = `${row.truck} dispatch ${i + 1} → ${d.name}\n` +
+        `${c.t0.toFixed(0)}–${c.t1.toFixed(0)} min · queued ${q.toFixed(0)} min · tips at ${c.hub}`;
+      chip.onmouseenter = () => focusCycle(row.truck + "-" + i, true);
+      chip.onmouseleave = () => focusCycle(row.truck + "-" + i, false);
+      r.appendChild(chip);
+    });
+    box.appendChild(r);
+  }
+}
+function focusCycle(key, on) {
+  const g = $("gantt");
+  g.classList.toggle("focus", on);
+  const node = g.querySelector(`[data-key="${key}"]`);
+  if (node) node.classList.toggle("on", on);
+}
+
+/* ---- gantt ---- */
+function renderGantt(p) {
+  const svg = $("gantt"); svg.innerHTML = ""; svg.classList.remove("focus");
+  const shift = NET.shift_minutes, W = 1000, L = 46, R = 10, T = 8, B = 26, rowH = 34;
+  const H = T + B + p.schedule.length * rowH;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const x = t => L + (W - L - R) * Math.min(t, shift) / shift;
+
+  for (let t = 0; t <= shift; t += 60) {
+    svg.appendChild(svgEl("line", {x1: x(t), x2: x(t), y1: T, y2: H - B,
+      stroke: "#EEEBE4", "stroke-width": t % 120 ? 1 : 1.5}));
+    if (t % 120 === 0)
+      svg.appendChild(svgEl("text", {x: x(t), y: H - B + 15,
+        "text-anchor": t === 0 ? "start" : t === shift ? "end" : "middle",
+        "font-size": 10.5, "font-family": MONO, fill: "#6E6A64"},
+        `${String(6 + t / 60).padStart(2, "0")}:00`));
+  }
+  p.schedule.forEach((row, i) => {
+    const y = T + i * rowH;
+    svg.appendChild(svgEl("text", {x: L - 8, y: y + rowH / 2 + 4, "text-anchor": "end",
+      "font-size": 11.5, "font-family": MONO, "font-weight": 600, fill: "#1D1D1B"}, row.truck));
+    row.cycles.forEach((c, ci) => {
+      const g = svgEl("g", {class: "cyc", "data-key": row.truck + "-" + ci});
+      for (const s of c.segs) {
+        if (s.t0 >= shift) continue;
+        const x0 = x(s.t0), x1 = x(s.t1);
+        const rect = svgEl("rect", {x: x0, y: y + 4, width: Math.max(x1 - x0 - 0.6, 0.6),
+          height: rowH - 9, rx: 1.5, fill: SEG[s.type].c});
+        rect.dataset.tip =
+          `${row.truck} · ${SEG[s.type].n} · ${s.at}\n${s.t0.toFixed(0)}–${Math.min(s.t1, shift).toFixed(0)} min` +
+          (s.type === "wait" ? `\n${(s.t1 - s.t0).toFixed(0)} min lost` : "");
+        g.appendChild(rect);
+        /* direct label: which DC this load block belongs to, where it fits */
+        if (s.type === "load" && x1 - x0 > 26)
+          g.appendChild(svgEl("text", {x: (x0 + x1) / 2, y: y + rowH / 2 + 4, "text-anchor": "middle",
+            "font-size": 9.5, "font-family": MONO, "font-weight": 700, fill: "#fff",
+            "pointer-events": "none"}, s.at.replace("DC-", "")));
+      }
+      svg.appendChild(g);
+    });
+  });
+}
+
+function drawLegends() {
+  const sw = k => `<span><span class="sw" style="background:${SEG[k].c}"></span>${SEG[k].n}</span>`;
+  $("gLegend").innerHTML = SPLIT_ORDER.map(sw).join("") +
+    `<span style="opacity:.8">numbers inside a load block are the DC · amber is time a truck spends achieving nothing</span>`;
+  $("sLegend").innerHTML = SPLIT_ORDER.map(sw).join("");
+}
+
+/* ---- fleet time composition ---- */
+function renderSplitBars(p) {
+  const svg = $("splitbars"); svg.innerHTML = "";
+  const rows = [{label: currentDef().short, r: p, hi: true}];
+  if (state.policy !== "baseline") rows.push({label: "Fixed roster (seed)", r: baseRef.per[0]});
+  if (state.policy !== "evolved") rows.push({label: "AlphaEvolve #26", r: evoRef.per[0]});
+  const W = 480, L = 4, R = 4, barH = 30, gap = 50;
+  svg.setAttribute("viewBox", `0 0 ${W} ${rows.length * gap + 4}`);
+  rows.forEach((row, i) => {
+    const y = 20 + i * gap;
+    svg.appendChild(svgEl("text", {x: L, y: y - 4, "font-size": 11.5,
+      "font-family": MONO, "font-weight": row.hi ? 700 : 400, fill: "#1D1D1B"},
+      row.label));
+    let x = L;
+    const scale = (W - L - R) / row.r.fleetMinutes;
+    for (const k of SPLIT_ORDER) {
+      const w = row.r.split[k] * scale;
+      if (w <= 0) continue;
+      const rect = svgEl("rect", {x, y, width: Math.max(w - 2, 0.8), height: barH, rx: 2, fill: SEG[k].c});
+      tipify(rect, $("sTip"), `${row.label}\n${SEG[k].n}: ${pct(row.r.split[k] / row.r.fleetMinutes)}` +
+        `\n${fmt(row.r.split[k] / 60)} truck-hours`);
+      svg.appendChild(rect);
+      if (w > 40) svg.appendChild(svgEl("text", {x: x + w / 2 - 1, y: y + barH / 2 + 4,
+        "text-anchor": "middle", "font-size": 10.5, "font-family": MONO, "font-weight": 600,
+        "pointer-events": "none",
+        fill: k === "load" || k === "unload" ? "#fff" : "#1D1D1B"},
+        pct(row.r.split[k] / row.r.fleetMinutes)));
+      x += w;
+    }
+  });
+}
+
+/* ---- diagnosis ---- */
+function renderDiagnosis(res, p) {
+  const out = [];
+  const q = p.split.wait / p.fleetMinutes;
+  const work = (p.split.load + p.split.unload) / p.fleetMinutes;
+  const hu = p.hub_utilisation_by_id;
+  const used = Object.values(p.dcStats).filter(s => s.runs > 0);
+  const worst = Object.entries(p.dcStats).sort((a, b) => b[1].queue - a[1].queue)[0];
+
+  out.push(q > 0.3
+    ? ["bad", "✕", `<b>${pct(q)} of the fleet's day is queueing.</b> That is ${fmt(p.split.wait / 60)} truck-hours of drivers watching another truck load.`]
+    : q > 0.12
+    ? ["warn", "!", `<b>${pct(q)} of fleet time is queueing.</b> Some contention, mostly absorbed.`]
+    : ["good", "✓", `<b>Only ${pct(q)} queueing.</b> Docks are booked but rarely contended.`]);
+
+  /* the belt speed the fleet actually bought with its loading hours — the
+     baseline's real pathology: it is busy, but busy on the slow manual docks */
+  const beltUsed = Object.values(p.dcStats).reduce((a, s) => a + s.parcels, 0) /
+                   Math.max(p.split.load, 1e-9);
+  const beltBest = Math.max(...NET.depots.map(d => d.dispatch_rate));
+  const spread = used.length >= 5;   // a concentrated plan earns no credit below
+  out.push(beltUsed > 0.72 * beltBest
+    ? spread
+      ? ["good", "✓", `<b>${fmt(beltUsed)} parcels/min average belt speed</b> — the fleet is spending its loading hours on the automated docks.`]
+      : ["info", "·", `${fmt(beltUsed)} parcels/min average belt speed — fast on paper, but only because the fleet is hammering ${used.length} dock${used.length > 1 ? "s" : ""} and ignoring the rest.`]
+    : ["bad", "✕", `<b>Only ${fmt(beltUsed)} parcels/min average belt speed.</b> ${pct(work)} of the day is loading and unloading, but much of it crawls through the slow manual docks while ${beltBest}/min belts stand free.`]);
+
+  /* fleet balance: on a roster, the truck on a fast DC laps the truck on a slow one */
+  const perTruck = p.schedule.map(r => r.cycles.filter(c => c.complete).length);
+  const lo = Math.min(...perTruck), hi = Math.max(...perTruck);
+  out.push(hi > 2 * lo
+    ? ["bad", "✕", `<b>The fleet is wildly unbalanced</b> — busiest truck ${hi} runs, quietest ${lo}. Trucks chained to a slow dock spend the day parked.`]
+    : hi - lo > 6
+    ? ["warn", "!", `Uneven fleet: ${hi} runs for the busiest truck, ${lo} for the quietest.`]
+    : spread
+    ? ["good", "✓", `Balanced fleet — every truck completes ${lo}–${hi} runs.`]
+    : ["info", "·", `Every truck completes ${lo}–${hi} runs — evenly stuck in the same queue.`]);
+
+  out.push(hu.HUB2 < 0.05
+    ? ["bad", "✕", `<b>The Telopea sorter never runs.</b> Half the network's sorting capacity is switched off all shift.`]
+    : Math.abs(hu.HUB - hu.HUB2) > 0.2
+    ? ["warn", "!", `Sorters are lopsided — Kurrajong ${pct(hu.HUB)}, Telopea ${pct(hu.HUB2)}. The quiet one is spare throughput.`]
+    : ["good", "✓", `Both sorters are fed — Kurrajong ${pct(hu.HUB)}, Telopea ${pct(hu.HUB2)}.`]);
+
+  out.push(used.length < 7
+    ? ["bad", "✕", `<b>${7 - used.length} of 7 delivery centres never see a truck.</b> Their parcels simply do not move today.`]
+    : ["good", "✓", `All 7 delivery centres are served; the load is spread across the network.`]);
+
+  if (worst && worst[1].queue > 60)
+    out.push(["warn", "!", `Worst dock: <b>${worst[0]}</b> holds trucks for ${fmt(worst[1].queue / 60)} truck-hours of queueing across the shift.`]);
+
+  $("diag").innerHTML = out.map(([cls, m, html]) =>
+    `<li class="${cls}"><span class="m">${m}</span><span>${html}</span></li>`).join("");
+}
+
+/* ---- policy ladder ---- */
+function renderLadder(customMean) {
+  const svg = $("ladder"); svg.innerHTML = "";
+  const rows = ALL.map(p => ({id: p.id, label: p.short, mean: p.mean, tag: p.tag}));
+  if (state.policy === "custom")
+    rows.push({id: "custom", label: CUSTOM.short, mean: customMean, tag: "yours"});
+  rows.sort((a, b) => a.mean - b.mean);
+  const W = 480, L = 152, R = 58, rowH = 30, top = Math.max(...rows.map(r => r.mean));
+  svg.setAttribute("viewBox", `0 0 ${W} ${rows.length * rowH + 32}`);
+  rows.forEach((r, i) => {
+    const y = 8 + i * rowH, sel = r.id === state.policy;
+    svg.appendChild(svgEl("text", {x: L - 8, y: y + 12, "text-anchor": "end", "font-size": 11.5,
+      "font-weight": sel ? 700 : 400, fill: "#1D1D1B"}, r.label));
+    const note = r.id === "baseline" ? "what we hand AlphaEvolve"
+               : r.id === "evolved" ? "what it handed back" : null;
+    if (note) svg.appendChild(svgEl("text", {x: L - 8, y: y + 22, "text-anchor": "end",
+      "font-size": 9, "font-family": MONO, fill: "#6E6A64"}, note));
+    const w = Math.max(2, (W - L - R) * r.mean / top);
+    const bar = svgEl("rect", {x: L, y: y + 2, width: w, height: 20, rx: 3,
+      fill: r.id === "evolved" ? "#DC1928" : r.id === "custom" ? "#E8A020" : "#0069C0",
+      opacity: sel ? 1 : .72,
+      stroke: sel ? "#1D1D1B" : "none", "stroke-width": 2});
+    bar.style.cursor = "pointer";
+    bar.onclick = () => { state.policy = r.id; render(); };
+    tipify(bar, $("lTip"), `${r.label}\n${fmt(r.mean)} parcels/shift\n${pctVs(r.mean, baseRef.mean)} vs the seed program`);
+    svg.appendChild(bar);
+    svg.appendChild(svgEl("text", {x: L + w + 6, y: y + 17, "font-size": 11,
+      "font-family": MONO, "font-weight": sel ? 700 : 400, fill: "#1D1D1B"}, fmtk(r.mean)));
+  });
+}
+
+/* ---- variants ---- */
+function renderVariants(res) {
+  const svg = $("variants"); svg.innerHTML = "";
+  const W = 640, L = 150, R = 96, rowH = 40;
+  const scores = res.per.map(r => r.parcels);
+  const top = Math.max(...scores, baseRef.per.map(r => r.parcels).reduce((a, b) => Math.max(a, b)));
+  svg.setAttribute("viewBox", `0 0 ${W} ${scores.length * rowH + 66}`);
+  scores.forEach((s, i) => {
+    const y = 8 + i * rowH;
+    svg.appendChild(svgEl("text", {x: L - 10, y: y + 15, "text-anchor": "end", "font-size": 12},
+      VAR.labels[i]));
+    svg.appendChild(svgEl("text", {x: L - 10, y: y + 27, "text-anchor": "end", "font-size": 9.5,
+      "font-family": MONO, fill: "#6E6A64"},
+      i === 0 ? "as drawn" : "depots moved · belts re-rated"));
+    const w = Math.max(2, (W - L - R) * s / top);
+    const bar = svgEl("rect", {x: L, y: y + 2, width: w, height: 22, rx: 3, fill: "#0069C0", opacity: .8});
+    tipify(bar, $("vTip"), `${VAR.labels[i]}\n${fmt(s)} parcels\n${res.per[i].runs} runs`);
+    svg.appendChild(bar);
+    svg.appendChild(svgEl("text", {x: L + w + 8, y: y + 18, "font-size": 11.5,
+      "font-family": MONO, fill: "#1D1D1B"}, fmt(s)));
+  });
+  const yEnd = 8 + scores.length * rowH;
+  svg.appendChild(svgEl("line", {x1: L, x2: W - R + 60, y1: yEnd + 2, y2: yEnd + 2, stroke: "#E4E1DB"}));
+  svg.appendChild(svgEl("text", {x: L - 10, y: yEnd + 24, "text-anchor": "end", "font-size": 12,
+    "font-weight": 700}, "mean = the score"));
+  svg.appendChild(svgEl("text", {x: L, y: yEnd + 24, "font-size": 15, "font-weight": 700,
+    "font-family": MONO, fill: "#DC1928"}, fmt(res.mean)));
+  $("whyArith").innerHTML = `the headline <b>+50%</b> is ${fmt(evoRef.mean)} (AlphaEvolve's candidate #26) ` +
+    `against ${fmt(baseRef.mean)} (the seed roster) — both means of these same three networks.`;
+}
+
+/* ---- tables (a11y relief for the colour-coded charts) ---- */
+function renderDcTable(p) {
+  const rows = NET.depots.map(d => {
+    const s = p.dcStats[d.id];
+    return `<tr><td>${d.name} (${d.id})</td><td>${d.dispatch_rate}</td><td>${s.runs}</td>` +
+      `<td>${fmt(s.load / 60)} h</td><td>${fmt(s.queue / 60)} h</td><td>${fmt(s.parcels)}</td></tr>`;
+  }).join("");
+  $("dcTable").innerHTML =
+    `<thead><tr><th>Delivery centre</th><th>belt /min</th><th>runs</th><th>loading</th>` +
+    `<th>trucks queued</th><th>parcels out</th></tr></thead><tbody>${rows}</tbody>`;
+}
+function renderPolicyTable() {
+  const rows = [...ALL].sort((a, b) => b.mean - a.mean).map(p => {
+    const r = p.per[0];
+    return `<tr><td>${p.label}</td><td>${fmt(p.mean)}</td><td>${pctVs(p.mean, baseRef.mean)}</td>` +
+      `<td>${r.runs}</td><td>${pct(r.split.wait / r.fleetMinutes)}</td>` +
+      `<td>${pct(r.hub_utilisation_by_id.HUB)} / ${pct(r.hub_utilisation_by_id.HUB2)}</td>` +
+      `<td>${Object.values(r.dcStats).filter(s => s.runs > 0).length}/7</td></tr>`;
+  }).join("");
+  $("polTable").innerHTML =
+    `<thead><tr><th>Dispatcher</th><th>parcels/shift</th><th>vs seed</th><th>runs</th>` +
+    `<th>queueing</th><th>sorters busy</th><th>DCs used</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+/* =================== step 6: a genetic algorithm =================== *
+ * Textbook GA over the 5-number genome in sim.js: evaluate, keep the elites,
+ * tournament-select two parents, uniform crossover, gaussian mutation. Fitness
+ * is the real thing — three full 12-hour shift simulations per individual.    */
+const GA_MAX_GEN = 30, GA_ELITE = 2, GA_SIGMA = 0.6, GA_TOURNEY = 3, GA_PACE = 380;
+const GA_COL = {A: "#0069C0", B: "#E8A020", cloud: "#C4CACA", best: "#DC1928",
+                mean: "#0069C0", gene: "#7C8688", track: "#EDEAE4"};
+let ga = null;
+
+const gauss = () => {
+  let u = 0, v = 0;
+  while (!u) u = Math.random();
+  while (!v) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+};
+const clampGene = v => +Math.min(GENE_MAX, Math.max(0, v)).toFixed(2);
+const randGenome = () => Array.from({length: GENES.length}, () => clampGene(Math.random() * GENE_MAX));
+const gKey = g => g.map(v => v.toFixed(2)).join(",");
+
+function buildGA() {
+  $("gaLegend").innerHTML =
+    `<span><span class="sw" style="background:${GA_COL.best}"></span>best in generation</span>` +
+    `<span><span class="sw" style="background:${GA_COL.mean}"></span>population average</span>` +
+    `<span><span class="sw" style="background:${GA_COL.cloud}"></span>one dot = one individual</span>` +
+    `<span style="opacity:.8">dashed lines are the two rules from the top of this page</span>`;
+  $("sPop").oninput = e => { $("vPop").textContent = e.target.value; gaReset(); };
+  $("sMut").oninput = e => { $("vMut").textContent = e.target.value + "%"; };
+  $("gaRun").onclick = () => ga.running ? gaPause() : gaRun();
+  $("gaStep").onclick = () => { gaPause(); gaAdvance(); };
+  $("gaReset").onclick = () => { gaPause(); gaReset(); };
+  gaReset();
+}
+
+function gaFitness(g) {
+  const k = gKey(g);
+  let f = ga.cache.get(k);
+  if (f === undefined) {
+    f = scoreAll(VAR.instances, net => genomePolicy(net, g)).mean;
+    ga.cache.set(k, f);
+    ga.evals++;
+  }
+  return f;
+}
+
+function gaReset() {
+  gaPause();
+  ga = {gen: 0, n: +$("sPop").value, evals: 0, cache: new Map(), hist: [],
+        running: false, timer: null, breed: null, firstBeat: null,
+        pop: Array.from({length: +$("sPop").value}, () => ({g: randGenome(), born: "random"}))};
+  gaScore();
+  drawGA();
+}
+
+/* How alike are these rules? Mean per-gene standard deviation, as a fraction of
+   the gene range — a population of clones reads 0%, a uniform random one ~29%.
+   (Best-minus-worst is no good here: one fresh mutant keeps it wide forever.) */
+function gaDiversity() {
+  let s = 0;
+  for (let k = 0; k < GENES.length; k++) {
+    const vs = ga.pop.map(i => i.g[k]);
+    const m = vs.reduce((a, b) => a + b, 0) / vs.length;
+    s += Math.sqrt(vs.reduce((a, b) => a + (b - m) ** 2, 0) / vs.length);
+  }
+  return s / GENES.length / GENE_MAX;
+}
+
+/* score everyone, rank, and record the generation */
+function gaScore() {
+  for (const ind of ga.pop) ind.f = gaFitness(ind.g);
+  ga.pop.sort((a, b) => b.f - a.f);
+  const all = ga.pop.map(i => i.f);
+  ga.hist.push({gen: ga.gen, all, best: all[0], worst: all[all.length - 1],
+                mean: all.reduce((a, b) => a + b, 0) / all.length, div: gaDiversity()});
+  if (ga.firstBeat === null && all[0] > evoRef.mean) ga.firstBeat = ga.gen;
+}
+
+function gaAdvance() {
+  if (ga.gen >= GA_MAX_GEN) { gaPause(); return; }
+  const mrate = +$("sMut").value / 100;
+  const tourney = () => {
+    let b = null;
+    for (let i = 0; i < GA_TOURNEY; i++) {
+      const c = ga.pop[Math.floor(Math.random() * ga.pop.length)];
+      if (!b || c.f > b.f) b = c;
+    }
+    return b;
+  };
+  const next = ga.pop.slice(0, GA_ELITE).map(i => ({g: i.g.slice(), f: i.f, born: "elite"}));
+  let record = null;
+  while (next.length < ga.n) {
+    const A = tourney(), B = tourney();
+    const from = A.g.map(() => Math.random() < 0.5 ? "A" : "B");
+    const child = A.g.map((a, i) => from[i] === "A" ? a : B.g[i]);
+    const mut = child.map(() => false);
+    for (let i = 0; i < child.length; i++)
+      if (Math.random() < mrate) { child[i] = clampGene(child[i] + gauss() * GA_SIGMA); mut[i] = true; }
+    if (!record) record = {A: A.g.slice(), fA: A.f, B: B.g.slice(), fB: B.f,
+                           from, child: child.slice(), mut};
+    next.push({g: child, born: "child"});
+  }
+  ga.pop = next;
+  ga.gen++;
+  gaScore();
+  if (record) record.fChild = gaFitness(record.child);
+  ga.breed = record;
+  drawGA();
+}
+
+function gaRun() {
+  if (ga.gen >= GA_MAX_GEN) gaReset();
+  ga.running = true;
+  $("gaRun").textContent = "⏸ Pause";
+  $("gaRun").classList.add("on");
+  const loop = () => {
+    if (!ga.running) return;
+    gaAdvance();
+    if (ga.gen >= GA_MAX_GEN) { gaPause(); return; }
+    ga.timer = setTimeout(loop, GA_PACE);
+  };
+  loop();
+}
+function gaPause() {
+  if (!ga) return;
+  ga.running = false;
+  clearTimeout(ga.timer);
+  $("gaRun").textContent = "▶ Run";
+  $("gaRun").classList.remove("on");
+}
+
+function drawGA() {
+  drawGaChart();
+  drawGaPop();
+  drawGaBreed();
+  const top = ga.pop[0], cur = ga.hist[ga.hist.length - 1], g0 = ga.hist[0];
+  $("gaCode").textContent = genomeCode(top.g);
+  $("gGen").textContent = `${ga.gen}${ga.gen >= GA_MAX_GEN ? " / 30" : ""}`;
+  $("gGenD").textContent = ga.gen >= GA_MAX_GEN ? "run finished" : ga.running ? "breeding…" : "paused";
+  $("gBest").textContent = fmt(cur.best);
+  $("gBestD").innerHTML = span(cur.best - evoRef.mean, pctVs(cur.best, evoRef.mean) + " vs #26");
+  $("gSpread").textContent = (100 * cur.div).toFixed(0) + "%";
+  $("gSpreadD").textContent = ga.gen === 0 ? "random start — as wide as it gets"
+    : `down from ${(100 * g0.div).toFixed(0)}% at generation 0`;
+  $("gEvals").textContent = fmt(ga.evals * VAR.instances.length);
+  $("gEvalsD").textContent = `${ga.evals} genomes scored`;
+  $("gaMeta").textContent =
+    `${ga.n} genomes · ${GENES.length} numbers each · ${GA_ELITE} elites · tournament of ${GA_TOURNEY}`;
+  $("gaNote").innerHTML = gaNarrate(cur, g0);
+  $("gaTable").innerHTML =
+    `<thead><tr><th>#</th>${GENES.map(x => `<th>${x.label}</th>`).join("")}` +
+    `<th>parcels/shift</th><th>origin</th></tr></thead><tbody>` +
+    ga.pop.map((ind, i) =>
+      `<tr><td>${i + 1}</td>${ind.g.map(v => `<td>${v.toFixed(2)}</td>`).join("")}` +
+      `<td>${fmt(ind.f)}</td><td>${ind.born}</td></tr>`).join("") + `</tbody>`;
+}
+
+function gaNarrate(cur, g0) {
+  if (ga.gen === 0)
+    return `<b>Generation 0 is ${ga.n} random genomes.</b> No search has happened yet — and the best of them already ` +
+      `scores ${fmt(g0.best)}, against AlphaEvolve's ${fmt(evoRef.mean)}. That is what the <em>template</em> is worth ` +
+      `before the algorithm does anything at all. Press Run and watch how little is left to win.`;
+  const recent = ga.hist.slice(-5);
+  const stalled = ga.gen >= 6 && recent.length === 5 && cur.best - recent[0].best < 200;
+  const beat = ga.firstBeat === 0 ? " It was past candidate #26 before the first generation was bred."
+    : ga.firstBeat !== null ? ` It passed candidate #26 at generation ${ga.firstBeat}.` : "";
+  if (stalled)
+    return `<b>Converged at generation ${ga.gen}.</b> The best genome has not moved in five generations, and gene ` +
+      `diversity is down to ${(100 * cur.div).toFixed(0)}% from ${(100 * g0.div).toFixed(0)}% — the survivors are ` +
+      `near-copies of each other. Raise the mutation rate to shake it loose, or accept that ${fmt(cur.best)} is ` +
+      `roughly the ceiling of this template.${beat}`;
+  return `<b>Generation ${ga.gen}.</b> Best ${fmt(cur.best)}, ${pctVs(cur.best, g0.best)} on generation 0; the ` +
+    `population average has moved ${pctVs(cur.mean, g0.mean)} as the weak genomes are bred out. Most of the visible ` +
+    `progress is the <em>cloud</em> tightening, not the leader climbing.${beat}`;
+}
+
+/* ---- fitness by generation: the whole population, plus best and mean ---- */
+function drawGaChart() {
+  const svg = $("gaChart"); svg.innerHTML = "";
+  const W = 660, H = 320, L = 54, R = 96, T = 12, B = 30;
+  const XMAX = Math.max(14, Math.min(GA_MAX_GEN, ga.gen + 2));
+  const Y0 = 240000, Y1 = 580000;
+  const X = g => L + (W - L - R) * g / XMAX;
+  const Y = v => T + (H - T - B) * (1 - (Math.max(Y0, Math.min(Y1, v)) - Y0) / (Y1 - Y0));
+
+  for (let v = 250000; v <= 550000; v += 100000) {
+    svg.appendChild(svgEl("line", {x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: "#EEEBE4"}));
+    svg.appendChild(svgEl("text", {x: L - 8, y: Y(v) + 4, "text-anchor": "end", "font-size": 10,
+      "font-family": MONO, fill: "#6E6A64"}, fmtk(v)));
+  }
+  for (let g = 0; g <= XMAX; g += 5) {
+    svg.appendChild(svgEl("text", {x: X(g), y: H - B + 16, "text-anchor": "middle", "font-size": 10,
+      "font-family": MONO, fill: "#6E6A64"}, g));
+  }
+  svg.appendChild(svgEl("text", {x: (L + W - R) / 2, y: H - 2, "text-anchor": "middle", "font-size": 10.5,
+    fill: "#6E6A64"}, "generation"));
+
+  /* the two rules from the top of the page, as reference lines */
+  for (const [v, lab] of [[baseRef.mean, "seed roster"], [evoRef.mean, "AlphaEvolve #26"]]) {
+    svg.appendChild(svgEl("line", {x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: "#1D1D1B",
+      "stroke-width": 1, "stroke-dasharray": "4 4", opacity: .45}));
+    svg.appendChild(svgEl("text", {x: W - R + 7, y: Y(v) + 1, "font-size": 9.5, fill: "#1D1D1B"}, lab));
+    svg.appendChild(svgEl("text", {x: W - R + 7, y: Y(v) + 12, "font-size": 9.5, "font-family": MONO,
+      fill: "#6E6A64"}, fmt(v)));
+  }
+
+  /* one dot per individual per generation — the cloud is the story */
+  for (const h of ga.hist) {
+    for (const f of h.all) {
+      const c = svgEl("circle", {cx: X(h.gen), cy: Y(f), r: 2.6, fill: GA_COL.cloud, opacity: .6});
+      c.dataset.tip = `generation ${h.gen}\n${fmt(f)} parcels/shift`;
+      svg.appendChild(c);
+    }
+  }
+  const path = key => ga.hist.map(h => `${X(h.gen)},${Y(h[key])}`).join(" ");
+  for (const [key, col] of [["mean", GA_COL.mean], ["best", GA_COL.best]]) {
+    svg.appendChild(svgEl("polyline", {points: path(key), fill: "none", stroke: col,
+      "stroke-width": 2, "stroke-linejoin": "round"}));
+    const last = ga.hist[ga.hist.length - 1];
+    svg.appendChild(svgEl("circle", {cx: X(last.gen), cy: Y(last[key]), r: 4, fill: col,
+      stroke: "#fff", "stroke-width": 2}));
+  }
+  /* direct labels on the two lines, placed left of the leading marker */
+  const last = ga.hist[ga.hist.length - 1];
+  svg.appendChild(svgEl("text", {x: X(last.gen) - 8, y: Y(last.best) - 8, "text-anchor": "end",
+    "font-size": 10.5, "font-family": MONO, "font-weight": 700, fill: "#1D1D1B"}, fmt(last.best)));
+  svg.appendChild(svgEl("text", {x: X(last.gen) - 8, y: Y(last.mean) + 16, "text-anchor": "end",
+    "font-size": 10.5, "font-family": MONO, fill: "#1D1D1B"}, fmt(last.mean)));
+}
+
+/* ---- a chromosome: five genes drawn as magnitude bars ---- */
+function chromosome(svg, x, y, cellW, h, genome, opts = {}) {
+  const gap = 3;
+  genome.forEach((v, i) => {
+    const cx = x + i * (cellW + gap);
+    svg.appendChild(svgEl("rect", {x: cx, y, width: cellW, height: h, rx: 1.5, fill: GA_COL.track}));
+    svg.appendChild(svgEl("rect", {x: cx, y, width: Math.max(1, cellW * v / GENE_MAX), height: h,
+      rx: 1.5, fill: opts.colours ? opts.colours[i] : GA_COL.gene}));
+    if (opts.ring && opts.ring[i])
+      svg.appendChild(svgEl("rect", {x: cx - 1.5, y: y - 1.5, width: cellW + 3, height: h + 3, rx: 2.5,
+        fill: "none", stroke: GA_COL.best, "stroke-width": 1.5}));
+    if (opts.values)
+      svg.appendChild(svgEl("text", {x: cx + cellW / 2, y: y + h + 11, "text-anchor": "middle",
+        "font-size": 9.5, "font-family": MONO,
+        "font-weight": opts.ring && opts.ring[i] ? 700 : 400,
+        fill: opts.ring && opts.ring[i] ? GA_COL.best : "#1D1D1B"}, v.toFixed(2)));
+  });
+  return x + genome.length * (cellW + gap) - gap;
+}
+
+/* ---- the population, ranked ---- */
+function drawGaPop() {
+  const svg = $("gaPop"); svg.innerHTML = "";
+  const W = 430, rowH = 15, head = 24, cellX = 22, cellW = 30, gap = 3;
+  const barX = cellX + GENES.length * (cellW + gap) + 12;
+  const barMax = W - barX - 62, top = 600000;
+  const H = head + ga.pop.length * rowH + 26;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+  GENES.forEach((gene, i) => {
+    svg.appendChild(svgEl("text", {x: cellX + i * (cellW + gap) + cellW / 2, y: 12,
+      "text-anchor": "middle", "font-size": 8.5, "font-family": MONO, fill: "#6E6A64"}, gene.short));
+  });
+  svg.appendChild(svgEl("text", {x: barX, y: 12, "font-size": 8.5, "font-family": MONO,
+    fill: "#6E6A64"}, "parcels/shift"));
+
+  ga.pop.forEach((ind, i) => {
+    const y = head + i * rowH;
+    svg.appendChild(svgEl("text", {x: 16, y: y + 9, "text-anchor": "end", "font-size": 9,
+      "font-family": MONO, "font-weight": i === 0 ? 700 : 400,
+      fill: ind.born === "child" ? "#6E6A64" : "#1D1D1B"}, i + 1));
+    chromosome(svg, cellX, y + 1, cellW, 10, ind.g);
+    const w = Math.max(1, barMax * ind.f / top);
+    const bar = svgEl("rect", {x: barX, y: y + 1, width: w, height: 10, rx: 1.5,
+      fill: i === 0 ? GA_COL.best : GA_COL.mean, opacity: i === 0 ? 1 : .62});
+    bar.dataset.tip = `#${i + 1} · ${ind.born}\n` +
+      GENES.map((gn, k) => `${gn.short.padEnd(6)} ${ind.g[k].toFixed(2)}`).join("\n") +
+      `\n${fmt(ind.f)} parcels/shift`;
+    svg.appendChild(bar);
+    svg.appendChild(svgEl("text", {x: barX + w + 5, y: y + 9.5, "font-size": 9,
+      "font-family": MONO, "font-weight": i === 0 ? 700 : 400, fill: "#1D1D1B"}, fmtk(ind.f)));
+  });
+  /* the two rules from the top of the page, ticked across the bars — without them
+     a converged population is twenty identical-looking bars saying nothing */
+  for (const [v, lab] of [[baseRef.mean, "seed"], [evoRef.mean, "#26"]]) {
+    const rx = barX + barMax * v / top;
+    svg.appendChild(svgEl("line", {x1: rx, x2: rx, y1: head - 5, y2: head + ga.pop.length * rowH,
+      stroke: "#1D1D1B", "stroke-width": 1, "stroke-dasharray": "3 3", opacity: .6}));
+    svg.appendChild(svgEl("text", {x: rx, y: 12, "text-anchor": "middle", "font-size": 8.5,
+      "font-family": MONO, fill: "#1D1D1B"}, lab));
+  }
+  svg.appendChild(svgEl("text", {x: 0, y: H - 13, "font-size": 9, fill: "#6E6A64"},
+    "bars run from zero · dashed ticks are the two rules from the top of this page"));
+  svg.appendChild(svgEl("text", {x: 0, y: H - 3, "font-size": 9, fill: "#6E6A64"},
+    ga.gen === 0 ? "every row here is a random genome — nothing has been selected yet"
+      : `rows 1–${GA_ELITE} are last generation's winners, carried over untouched`));
+}
+
+/* ---- crossover and mutation, on the last child made ---- */
+function drawGaBreed() {
+  const svg = $("gaBreed"); svg.innerHTML = "";
+  const W = 430, cellW = 44, gap = 3, x0 = 74, h = 16;
+  const b = ga.breed;
+  if (!b) {
+    svg.setAttribute("viewBox", "0 0 430 60");
+    svg.appendChild(svgEl("text", {x: 0, y: 22, "font-size": 12, fill: "#6E6A64"},
+      "Nothing has been bred yet — this is generation 0."));
+    svg.appendChild(svgEl("text", {x: 0, y: 40, "font-size": 12, fill: "#6E6A64"},
+      "Step or run, and the first child appears here."));
+    return;
+  }
+  svg.setAttribute("viewBox", "0 0 430 168");
+  GENES.forEach((gene, i) =>
+    svg.appendChild(svgEl("text", {x: x0 + i * (cellW + gap) + cellW / 2, y: 9,
+      "text-anchor": "middle", "font-size": 8.5, "font-family": MONO, fill: "#6E6A64"}, gene.short)));
+
+  const row = (y, label, fitness, genome, opts, labelCol) => {
+    svg.appendChild(svgEl("text", {x: x0 - 10, y: y + 11, "text-anchor": "end", "font-size": 11,
+      "font-weight": 600, fill: labelCol || "#1D1D1B"}, label));
+    svg.appendChild(svgEl("text", {x: x0 - 10, y: y + 23, "text-anchor": "end", "font-size": 9,
+      "font-family": MONO, fill: "#6E6A64"}, fmt(fitness)));
+    chromosome(svg, x0, y, cellW, h, genome, opts);
+  };
+  const cols = b.from.map(f => f === "A" ? GA_COL.A : GA_COL.B);
+  row(16, "parent A", b.fA, b.A, {values: true, colours: b.A.map(() => GA_COL.A)}, GA_COL.A);
+  row(54, "parent B", b.fB, b.B, {values: true, colours: b.B.map(() => GA_COL.B)}, GA_COL.B);
+  svg.appendChild(svgEl("text", {x: x0, y: 100, "font-size": 10, fill: "#6E6A64"},
+    "each gene copied from one parent at random, then jittered"));
+  row(110, "child", b.fChild, b.child, {values: true, colours: cols, ring: b.mut});
+
+  const nMut = b.mut.filter(Boolean).length, nA = b.from.filter(f => f === "A").length;
+  svg.appendChild(svgEl("text", {x: 0, y: 164, "font-size": 9.5, fill: "#6E6A64"},
+    `${nA} gene${nA === 1 ? "" : "s"} from A · ${b.from.length - nA} from B · ` +
+    (nMut ? `${nMut} mutated (ringed in red)` : "no mutations this time")));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+{
+  "description": "Fictional metro parcel network for AlphaEvolve demo",
+  "units": {
+    "distance": "1 unit = 10 m",
+    "payload": "parcels"
+  },
+  "shift_minutes": 720,
+  "speed_empty": 110,
+  "speed_loaded": 75,
+  "trucks": [
+    {
+      "id": "T01",
+      "capacity": 1800
+    },
+    {
+      "id": "T02",
+      "capacity": 1800
+    },
+    {
+      "id": "T03",
+      "capacity": 1700
+    },
+    {
+      "id": "T04",
+      "capacity": 1900
+    },
+    {
+      "id": "T05",
+      "capacity": 1600
+    },
+    {
+      "id": "T06",
+      "capacity": 1800
+    },
+    {
+      "id": "T07",
+      "capacity": 1700
+    }
+  ],
+  "depots": [
+    {
+      "id": "DC-1",
+      "name": "Banksia DC",
+      "x": 140,
+      "y": 180,
+      "dispatch_rate": 110
+    },
+    {
+      "id": "DC-2",
+      "name": "Waratah DC",
+      "x": 120,
+      "y": 420,
+      "dispatch_rate": 100
+    },
+    {
+      "id": "DC-3",
+      "name": "Bluegum DC",
+      "x": 220,
+      "y": 620,
+      "dispatch_rate": 90
+    },
+    {
+      "id": "DC-4",
+      "name": "Ironbark DC",
+      "x": 420,
+      "y": 150,
+      "dispatch_rate": 300
+    },
+    {
+      "id": "DC-5",
+      "name": "Coolibah DC",
+      "x": 700,
+      "y": 90,
+      "dispatch_rate": 330
+    },
+    {
+      "id": "DC-6",
+      "name": "Mulga DC",
+      "x": 740,
+      "y": 680,
+      "dispatch_rate": 340
+    },
+    {
+      "id": "DC-7",
+      "name": "Quandong DC",
+      "x": 540,
+      "y": 700,
+      "dispatch_rate": 150
+    }
+  ],
+  "hub": {
+    "id": "HUB",
+    "name": "Kurrajong Parcel Facility",
+    "x": 840,
+    "y": 400,
+    "sort_rate": 760
+  },
+  "hubs": [
+    {
+      "id": "HUB",
+      "name": "Kurrajong Parcel Facility",
+      "x": 840,
+      "y": 400,
+      "sort_rate": 760
+    },
+    {
+      "id": "HUB2",
+      "name": "Telopea Parcel Facility",
+      "x": 90,
+      "y": 260,
+      "sort_rate": 620
+    }
+  ]
+}

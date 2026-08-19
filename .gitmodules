@@ -1,0 +1,3 @@
+[submodule "vendor/alphaevolve"]
+	path = vendor/alphaevolve
+	url = https://github.com/Google-Cloud-AI/alphaevolve-on-googlecloud.git

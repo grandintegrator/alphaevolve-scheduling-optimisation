@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Program family tree — Metro Parcel Network × AlphaEvolve</title>
+<style>
+  :root {
+    --bg: #F5F3F0;
+    --panel: #FFFFFF;
+    --ink: #1D1D1B;
+    --muted: #6E6A64;
+    --line: #E4E1DB;
+    --red: #DC1928;        /* brand + champion ancestry line */
+    --hivis: #FFB81C;      /* new-best signal only */
+    --blue: #005EB8;
+    --display: "Helvetica Neue", Arial, Helvetica, sans-serif;
+    --body: "Helvetica Neue", Arial, Helvetica, sans-serif;
+    --mono: ui-monospace, Consolas, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; }
+  a { color: var(--blue); }
+  button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+
+  header {
+    background: var(--panel); border-bottom: 1px solid var(--line); border-top: 5px solid var(--red);
+    padding: 20px 32px 18px; display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  }
+  .logo {
+    background: var(--red); color: #fff; font-family: var(--display); font-weight: 700;
+    font-size: 20px; padding: 8px 16px 9px; letter-spacing: .01em; border-radius: 4px;
+  }
+  .masthead h1 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 30px; line-height: 1.05; letter-spacing: -.01em; }
+  .masthead .sub { color: var(--muted); font-size: 13px; margin-top: 5px; }
+  .headline { margin-left: auto; text-align: right; border-right: 4px solid var(--red); padding-right: 14px; }
+  .headline .big { font-family: var(--display); font-weight: 700; font-size: 44px; line-height: .95; color: var(--red); }
+  .headline .lbl { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .backlink { font-size: 13px; }
+
+  main { display: grid; grid-template-columns: minmax(560px, 8fr) minmax(360px, 4fr);
+         gap: 20px; padding: 20px 32px 32px; max-width: 1520px; margin: 0 auto; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px 20px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+             color: var(--muted); display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .card h2 { margin: 0 0 10px; font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -.01em; }
+
+  .treewrap { position: relative; }
+  svg#tree { width: 100%; height: auto; display: block; background: #F1EFEA; border: 1px solid var(--line); border-radius: 4px; }
+  .gen-label { font-family: var(--mono); font-size: 11px; fill: var(--muted); letter-spacing: .1em; }
+  .edge { fill: none; stroke: #D8D4CD; stroke-width: 1.4; }
+  .edge.champ { stroke: var(--red); stroke-width: 2.4; }
+  .node { cursor: pointer; }
+  .node .hit { fill: transparent; }
+  .node-label { font-family: var(--mono); font-size: 11.5px; fill: var(--ink); pointer-events: none; }
+  .node-score { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); pointer-events: none; }
+  .node .sel-ring { fill: none; stroke: var(--blue); stroke-width: 2.5; display: none; }
+  .node.selected .sel-ring { display: block; }
+
+  #tooltip { position: absolute; pointer-events: none; display: none; z-index: 5;
+             background: var(--ink); color: #F2F0EC; font-family: var(--mono); font-size: 12px;
+             padding: 6px 9px; max-width: 300px; white-space: nowrap; border-radius: 3px; }
+  .treelegend { display: flex; gap: 18px; margin-top: 10px; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+  .treelegend span { display: inline-flex; align-items: center; gap: 6px; }
+  .treelegend svg { flex: none; }
+
+  /* candidate explorer */
+  .chip { font-weight: 600; font-size: 11.5px; padding: 2px 9px; letter-spacing: .08em; border-radius: 3px; font-family: var(--mono); }
+  .chip.best { background: var(--hivis); color: var(--ink); }
+  .chip.champ { background: var(--red); color: #fff; }
+  .chip.nogain { background: #EDEAE4; color: #55524D; }
+  .chip.rejected { background: none; border: 1px solid var(--muted); color: var(--muted); }
+  .chip.seed { background: var(--ink); color: #fff; }
+
+  #candlist { list-style: none; margin: 12px 0 0; padding: 0; max-height: 300px; overflow-y: auto;
+              border: 1px solid var(--line); border-radius: 4px; }
+  #candlist li { display: flex; align-items: center; gap: 10px; padding: 7px 10px; cursor: pointer;
+                 border-bottom: 1px solid var(--line); font-size: 13px; }
+  #candlist li:last-child { border-bottom: 0; }
+  #candlist li:hover { background: #F7F5F1; }
+  #candlist li.selected { background: #EFF4FA; box-shadow: inset 3px 0 0 var(--blue); }
+  #candlist .nm { font-family: var(--mono); font-size: 12.5px; }
+  #candlist .sc { margin-left: auto; font-family: var(--mono); font-size: 12.5px; }
+
+  #detail { margin-top: 16px; }
+  #detail .titlerow { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  #detail h3 { margin: 0; font-family: var(--mono); font-size: 18px; }
+  #detail .scorebox { margin-left: auto; font-family: var(--mono); font-weight: 600; font-size: 20px;
+                      border: 2px solid var(--ink); border-radius: 4px; padding: 3px 10px; }
+  #detail .meta { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; line-height: 1.6; }
+  #detail .meta b { color: var(--ink); font-weight: 600; }
+  #detail .insight { background: #FDF3F4; border: 1px solid #F2C4C8; border-radius: 4px;
+                     padding: 9px 12px; font-size: 13px; margin-top: 10px; }
+  #detail pre { background: var(--ink); color: #F0EDE7; padding: 12px; overflow-x: auto; border-radius: 4px;
+                font-family: var(--mono); font-size: 11.5px; line-height: 1.5; max-height: 340px; margin: 10px 0 0; }
+  .parentlink { background: none; border: 0; padding: 0; color: var(--blue); font: inherit;
+                cursor: pointer; text-decoration: underline; }
+
+  @media (max-width: 1080px) {
+    main { grid-template-columns: 1fr; padding: 16px; }
+    header { padding: 16px; }
+    .headline { margin-left: 0; text-align: left; border-right: 0; border-left: 4px solid var(--red); padding: 0 0 0 14px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Metro Parcel Network</div>
+  <div class="masthead">
+    <h1>Program family tree</h1>
+    <div class="sub">Every candidate AlphaEvolve generated, linked to the parent it was evolved from ·
+      real run · <a class="backlink" href="index.html">&larr; back to the linehaul replay</a></div>
+  </div>
+  <div class="headline">
+    <div class="big" id="headlinePct">—</div>
+    <div class="lbl">more parcels than the seed dispatcher</div>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <div class="eyebrow"><span>Evolutionary lineage</span><span id="treeMeta">—</span></div>
+    <h2>Who begat whom</h2>
+    <div class="treewrap">
+      <svg id="tree" role="img" aria-label="Family tree of candidate programs; each node links to the parent program it was evolved from"></svg>
+      <div id="tooltip"></div>
+    </div>
+    <div class="treelegend" id="legend"></div>
+  </section>
+
+  <section class="card">
+    <div class="eyebrow"><span>Candidate explorer</span><span>click a node or a row</span></div>
+    <h2>Inside each program</h2>
+    <ul id="candlist"></ul>
+    <div id="detail"><p style="color:var(--muted)">Select a candidate to see its score, lineage and evolved dispatch rule.</p></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const SVGNS = "http://www.w3.org/2000/svg";
+const fmt = n => n == null ? "—" : Math.round(n).toLocaleString("en-AU");
+
+/* deterministic memorable names, like the AlphaEvolve results explorer */
+const ADJ = ["tangerine","brilliant","dazzling","olivine","pumpkin","tourmaline","cobalt","amber",
+             "crimson","saffron","indigo","copper","jade","onyx","pearl","russet",
+             "scarlet","teal","umber","violet","golden","silver","ivory","maroon","hazel"];
+const ANI = ["mole","elephant","otter","anaconda","skink","mandrill","wombat","echidna",
+             "dingo","quokka","lorikeet","possum","bilby","kookaburra","numbat","cassowary",
+             "wallaby","goanna","ibis","magpie","brolga","bandicoot","platypus","koala","emu"];
+function progName(id) {
+  let h = 0;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return "prog-" + ADJ[h % ADJ.length] + "-" + ANI[(h / ADJ.length | 0) % ANI.length];
+}
+
+function el(tag, attrs, text) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function evolveBlock(code) {
+  if (!code) return null;
+  const m = code.match(/# EVOLVE-BLOCK-START([\s\S]*?)# EVOLVE-BLOCK-END/);
+  return m ? m[1].trim() : code;
+}
+
+fetch("../traces/lineage.json").then(r => r.json()).then(data => {
+  const nodes = data.nodes;
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const root = nodes.find(n => !n.parent);
+
+  for (const n of nodes) {
+    n.children = [];
+    n.name = n.parent ? progName(n.id) : "seed-dispatcher";
+  }
+  for (const n of nodes) if (n.parent && byId.has(n.parent)) byId.get(n.parent).children.push(n);
+  const childOrder = (a, b) => (a.idx ?? 1e9) - (b.idx ?? 1e9) ||
+                               (a.create_time || "").localeCompare(b.create_time || "");
+  for (const n of nodes) n.children.sort(childOrder);
+
+  /* status */
+  const scored = nodes.filter(n => n.score != null);
+  const champion = scored.reduce((a, b) => (b.score > a.score ? b : a));
+  const champPath = new Set();
+  for (let n = champion; n; n = byId.get(n.parent)) champPath.add(n.id);
+  const pct = (champion.score - root.score) / root.score * 100;
+  document.getElementById("headlinePct").textContent = "+" + pct.toFixed(0) + "%";
+
+  function status(n) {
+    if (!n.parent) return "seed";
+    if (n.failed) return "failed";
+    if (n.id === champion.id) return "champion";
+    if (n.new_best) return "best";
+    if (n.idx == null) return "unscored";
+    return "ok";
+  }
+
+  /* ---------- layout: leaves get rows, parents sit at the mean of their children ---------- */
+  let leafRow = 0;
+  (function place(n, depth) {
+    n.depth = depth;
+    if (!n.children.length) { n.row = leafRow++; return; }
+    for (const c of n.children) place(c, depth + 1);
+    n.row = n.children.reduce((s, c) => s + c.row, 0) / n.children.length;
+  })(root, 0);
+
+  const maxDepth = Math.max(...nodes.map(n => n.depth));
+  const ROW = 34, PADX = 150, PADT = 46, PADB = 20;
+  const W = 980, H = PADT + PADB + (leafRow - 1) * ROW + 20;
+  const colW = (W - 2 * PADX) / Math.max(maxDepth, 1);
+  const X = n => PADX + n.depth * colW;
+  const Y = n => PADT + 10 + n.row * ROW;
+
+  const svg = document.getElementById("tree");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  document.getElementById("treeMeta").textContent =
+    `${nodes.length} programs · ${maxDepth + 1} generations · gemini candidates scored by evaluate.py`;
+
+  for (let g = 0; g <= maxDepth; g++) {
+    svg.appendChild(el("text", {x: PADX + g * colW, y: 22, "text-anchor": "middle", class: "gen-label"},
+                       g === 0 ? "SEED" : "GEN " + g));
+  }
+
+  const edgeLayer = el("g", {}); svg.appendChild(edgeLayer);
+  const nodeLayer = el("g", {}); svg.appendChild(nodeLayer);
+  for (const n of nodes) {
+    if (!n.parent || !byId.has(n.parent)) continue;
+    const p = byId.get(n.parent);
+    const x1 = X(p), y1 = Y(p), x2 = X(n), y2 = Y(n), mx = (x1 + x2) / 2;
+    const champ = champPath.has(n.id) && champPath.has(p.id);
+    edgeLayer.appendChild(el("path", {
+      d: `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`,
+      class: "edge" + (champ ? " champ" : "")
+    }));
+  }
+
+  /* node glyphs — shape + color together, never color alone */
+  function drawGlyph(g, st) {
+    if (st === "seed") {
+      g.appendChild(el("circle", {r: 6.5, fill: "var(--ink)"}));
+    } else if (st === "best" || st === "champion") {
+      g.appendChild(el("circle", {r: 7, fill: "var(--hivis)", stroke: "var(--ink)", "stroke-width": 2}));
+      g.appendChild(el("path", {   // star
+        d: "M0,-3.6 L1.06,-1.1 L3.8,-1.1 L1.6,0.7 L2.35,3.3 L0,1.8 L-2.35,3.3 L-1.6,0.7 L-3.8,-1.1 L-1.06,-1.1 Z",
+        fill: "var(--ink)"}));
+    } else if (st === "failed") {
+      g.appendChild(el("circle", {r: 5.5, fill: "#fff", stroke: "var(--red)", "stroke-width": 2}));
+      g.appendChild(el("path", {d: "M-2.4,-2.4 L2.4,2.4 M2.4,-2.4 L-2.4,2.4",
+                                stroke: "var(--red)", "stroke-width": 1.6}));
+    } else if (st === "unscored") {
+      g.appendChild(el("circle", {r: 4.5, fill: "#fff", stroke: "#B4AFA7", "stroke-width": 2}));
+    } else {
+      g.appendChild(el("circle", {r: 5, fill: "var(--blue)", stroke: "#F1EFEA", "stroke-width": 2}));
+    }
+  }
+
+  const tooltip = document.getElementById("tooltip");
+  function tipText(n) {
+    const bits = [n.name];
+    if (n.idx != null) bits.push("iteration " + n.idx);
+    bits.push(n.failed ? "failed evaluation" : fmt(n.score) + " parcels/shift");
+    const p = byId.get(n.parent);
+    if (p && n.score != null && p.score != null) {
+      const d = n.score - p.score;
+      bits.push((d >= 0 ? "+" : "") + fmt(d) + " vs parent");
+    }
+    return bits.join(" · ");
+  }
+  function showTip(n, evt) {
+    tooltip.textContent = tipText(n);
+    tooltip.style.display = "block";
+    const wrap = svg.parentElement.getBoundingClientRect();
+    const x = (evt ? evt.clientX : wrap.left + 40) - wrap.left;
+    const y = (evt ? evt.clientY : wrap.top + 40) - wrap.top;
+    tooltip.style.left = Math.min(x + 14, wrap.width - 310) + "px";
+    tooltip.style.top = (y - 34) + "px";
+  }
+
+  const nodeEls = new Map();
+  for (const n of nodes) {
+    const st = status(n);
+    const g = el("g", {class: "node", transform: `translate(${X(n)},${Y(n)})`,
+                       tabindex: 0, role: "button"});
+    g.setAttribute("aria-label", tipText(n));
+    g.appendChild(el("circle", {r: 13, class: "hit"}));
+    g.appendChild(el("circle", {r: 10.5, class: "sel-ring"}));
+    drawGlyph(g, st);
+    if (st === "seed" || st === "best" || st === "champion") {   // selective direct labels
+      const above = el("text", {x: 0, y: -13, "text-anchor": "middle", class: "node-label"}, n.name);
+      const below = el("text", {x: 0, y: 22, "text-anchor": "middle", class: "node-score"},
+                       fmt(n.score));
+      g.appendChild(above); g.appendChild(below);
+    }
+    g.addEventListener("mousemove", e => showTip(n, e));
+    g.addEventListener("mouseleave", () => tooltip.style.display = "none");
+    g.addEventListener("focus", () => showTip(n));
+    g.addEventListener("blur", () => tooltip.style.display = "none");
+    g.addEventListener("click", () => select(n));
+    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(n); } });
+    nodeLayer.appendChild(g);
+    nodeEls.set(n.id, g);
+  }
+
+  /* legend */
+  const LEGEND = [
+    ["seed", "seed program"],
+    ["best", "new best (★)"],
+    ["ok", "scored, no gain"],
+    ["failed", "failed (✕)"],
+    ["unscored", "generated, not scored"],
+  ];
+  const legend = document.getElementById("legend");
+  for (const [st, label] of LEGEND) {
+    const span = document.createElement("span");
+    const mini = el("svg", {width: 22, height: 22, viewBox: "-11 -11 22 22"});
+    const g = el("g", {});
+    drawGlyph(g, st); mini.appendChild(g); span.appendChild(mini);
+    span.appendChild(document.createTextNode(label));
+    legend.appendChild(span);
+  }
+  const champSpan = document.createElement("span");
+  champSpan.innerHTML = '<svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--red)" stroke-width="2.4"/></svg> champion ancestry';
+  legend.appendChild(champSpan);
+
+  /* ---------- candidate list (table-view twin) ---------- */
+  const listOrder = [root, ...nodes.filter(n => n.parent)
+      .sort((a, b) => (a.idx ?? 1e9) - (b.idx ?? 1e9) ||
+                      (a.create_time || "").localeCompare(b.create_time || ""))];
+  const list = document.getElementById("candlist");
+  const rowEls = new Map();
+  for (const n of listOrder) {
+    const st = status(n);
+    const li = document.createElement("li");
+    const chip = document.createElement("span");
+    chip.className = "chip " + ({seed: "seed", champion: "champ", best: "best",
+                                 failed: "rejected", unscored: "rejected", ok: "nogain"})[st];
+    chip.textContent = ({seed: "SEED", champion: "CHAMPION", best: "NEW BEST", failed: "FAILED",
+                         unscored: "UNSCORED", ok: "NO GAIN"})[st];
+    const nm = document.createElement("span"); nm.className = "nm";
+    nm.textContent = (n.idx != null ? String(n.idx).padStart(2, "0") + " · " : "— · ") + n.name;
+    const sc = document.createElement("span"); sc.className = "sc"; sc.textContent = fmt(n.score);
+    li.append(chip, nm, sc);
+    li.addEventListener("click", () => select(n));
+    list.appendChild(li);
+    rowEls.set(n.id, li);
+  }
+
+  /* ---------- detail panel ---------- */
+  const detail = document.getElementById("detail");
+  function select(n) {
+    for (const g of nodeEls.values()) g.classList.remove("selected");
+    for (const r of rowEls.values()) r.classList.remove("selected");
+    nodeEls.get(n.id).classList.add("selected");
+    rowEls.get(n.id).classList.add("selected");
+    rowEls.get(n.id).scrollIntoView({block: "nearest"});
+
+    const p = byId.get(n.parent);
+    detail.innerHTML = "";
+    const titlerow = document.createElement("div"); titlerow.className = "titlerow";
+    const h3 = document.createElement("h3"); h3.textContent = n.name;
+    const score = document.createElement("span"); score.className = "scorebox";
+    score.textContent = n.failed ? "failed" : fmt(n.score);
+    titlerow.append(h3, score); detail.appendChild(titlerow);
+
+    const meta = document.createElement("p"); meta.className = "meta";
+    const delta = (p && n.score != null && p.score != null)
+      ? ` · <b>${n.score >= p.score ? "+" : ""}${fmt(n.score - p.score)}</b> vs parent` : "";
+    meta.innerHTML =
+      (n.idx != null ? `evaluated <b>#${n.idx}</b> of ${nodes.filter(x => x.idx != null).length}` : "generated, never scored locally") +
+      ` · generation <b>${n.depth}</b>` +
+      (p ? ` · parent <button class="parentlink">${p.name}</button>` : " · this is the seed program") +
+      delta +
+      (champPath.has(n.id) ? ` · on the <b style="color:var(--red)">champion ancestry</b>` : "");
+    detail.appendChild(meta);
+    const pl = meta.querySelector(".parentlink");
+    if (pl) pl.addEventListener("click", () => select(p));
+
+    if (n.insight) {
+      const ins = document.createElement("div"); ins.className = "insight";
+      ins.textContent = "Evaluator insight: " + n.insight;
+      detail.appendChild(ins);
+    }
+    const code = evolveBlock(n.code);
+    if (code) {
+      const lbl = document.createElement("p"); lbl.className = "meta";
+      lbl.innerHTML = "<b>Evolved dispatch rule</b> (the EVOLVE block AlphaEvolve rewrote):";
+      detail.appendChild(lbl);
+      const pre = document.createElement("pre"); pre.textContent = code;
+      detail.appendChild(pre);
+    }
+  }
+
+  select(champion);
+}).catch(err => {
+  document.getElementById("detail").innerHTML =
+    `<p style="color:var(--red)">Could not load ../traces/lineage.json — run
+     <code>.venv/bin/python scripts/export_lineage.py</code> first. (${err.message})</p>`;
+});
+</script>
+</body>
+</html>
